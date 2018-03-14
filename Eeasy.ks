@@ -1,34 +1,59 @@
 install
-cdrom
+#cdrom
 lang en_US.UTF-8
 keyboard us
 firewall --disabled
 selinux --disable
 timezone --utc Asia/Taipei
+text
 
-
+%include /tmp/rootpasswd.ks
 #default root's password
 #  grub-crypt --sha-512
-#example: blahblahblah
-
-rootpw --iscrypted $6$633bgr056OgHj1k1$7fOUQaon95JA7t9Od8aoh7FAABS5uhhNtv8s/Q63HrjFOmoKIXcg2zUpR0P.8062HQihOuO1QZCejb1arg.g3/
+#example: 
+#rootpw --iscrypted $6$633bgr056OgHj1k1$7fOUQasfsdfdsfdsffaoh7FAABS5uhhNtv8s/Q63HrjFOmoKIXcg2zUpR0P.8062HQihOuO1QZCejb1arg.g3/
 authconfig --enableshadow --passalgo=sha512
 
-user --name=maxi --iscrypted --password=$6$Gg3h0l3bhYHhbkWf$uDtekP3Pz2ymHYuJlHtVNrSZ5FmT/xWuSX05uAtjFOiHyqMlsMAywvbxNdrGMQbax3TrJcwBOk7IkL6sx.0C9/
+#add a default user
+#user --name=maxi --iscrypted --password=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+#During installation, you can interact with anaconda and monitor its progress over an SSH connection
 sshpw --username=skywalker joechi1234 --plaintext
 
-url --url http://ftp.stu.edu.tw/Linux/CentOS/6/os/x86_64/
-repo --name=updates --baseurl=http://ftp.stu.edu.tw/Linux/CentOS/6/updates/x86_64/
+%include /tmp/use_url.ks
+
+url --url http://linux.cs.nctu.edu.tw/CentOS/6.9/os/x86_64/
+#repo --name=base --baseurl=http://linux.cs.nctu.edu.tw/CentOS/6.9/updates/x86_64/
+#repo --name=updates --baseurl=http://linux.cs.nctu.edu.tw/CentOS/6.9/updates/x86_64/
+repo --name=epel --baseurl=http://dl.fedoraproject.org/pub/epel/6/x86_64/
 
 %include /tmp/userpasswd.ks
 %include /tmp/part_disk.ks
 
+
 %packages --nobase
 #%packages
+epel-release
+at
 curl
 ntpdate
 openssh-clients
+vim-filesystem
+vim-common
+vim-enhanced
+nc
+wget
+unzip
+zip
+bc
+mutt
+net-snmp
+net-snmp-utils
+lynx
+geoipupdate
+geoipupdate-cron
+GeoIP
+man
 %end
 
 
@@ -42,18 +67,36 @@ chvt 3
 clear
 
 echo "" > /tmp/userpasswd.ks
+echo "" > /tmp/rootpasswd.ks
 echo "" > /tmp/hostname.txt
+echo "" > /tmp/use_url.ks
+
+for i in http://linux.cs.nctu.edu.tw/CentOS/6.9/ http://ftp.stu.edu.tw/Linux/CentOS/6.9/ http://ftp.twaren.net/Linux/CentOS/6.9/ http://ftp.yzu.edu.tw/Linux/CentOS/6.9/ http://mirror.centos.org/centos/6.9/ ; do
+	curl -sSLf -D - "${i}os/x86_64/" -o /dev/null && {
+		cat << EOD > /tmp/use_url.ks
+#url --url ${i}os/x86_64/
+repo --name=updates --baseurl=${i}updates/x86_64/
+repo --name=base --baseurl=${i}updates/x86_64/
+EOD
+	echo "Use URL SOURCE: ${i}"
+	break;
+}
+done
 
 #get setting from cmdline
 for x in `cat /proc/cmdline`; do
 	case $x in 
-	SERVERNAME*)
+	SERVERNAME=*)
 		eval $x
 		echo ${SERVERNAME} > /tmp/hostname.txt
 		;;
-	PASSWORD*)
+	MAXIPASSWORD=*)
 		eval $x
-		echo "user --name=opuser --password=${PASSWORD}" > /tmp/userpasswd.ks
+		echo "user --name=maxi --password=${MAXIPASSWORD}" > /tmp/userpasswd.ks
+		;;
+	ROOTPASSWORD=*)
+		eval $x
+		echo "rootpw ${ROOTPASSWORD}" > /tmp/rootpasswd.ks
 		;;
 	DISKMANUAL*)
 		#manual disk partition setting
@@ -66,6 +109,7 @@ while [ "X"${SERVERNAME} == "X" ]; do
 	## Query for hostname, then write it to 'network' file
 	#read -p "What is my hostname (FQDN)? (This will be set on eth0)" SERVERNAME /dev/tty3 2>&1
 	read -p "What is my hostname (FQDN)? (This will be set on eth0): " SERVERNAME
+
 	echo "${SERVERNAME}" > /tmp/hostname.txt
 done
 
@@ -93,6 +137,7 @@ for DEV in sda sdb sdc sdd hda hdb; do
 	fi
 done
 echo "ROOTDRIVE=$ROOTDRIVE"
+ifconfig
 read -n 10 -s -r -p "Press any key to continue" /dev/tty3 2>&1
 
 cat << EOD > /tmp/part_disk.ks
